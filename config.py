@@ -1,4 +1,4 @@
-ROOT_DIR = 'G:/dataset/热身赛-面额识别'
+ROOT_DIR = '.'
 TRAIN_LABEL_CSV = 'train_face_value_label.csv'
 TRAIN_DIR = 'train_data'
 TEST_DIR = 'public_test_data'

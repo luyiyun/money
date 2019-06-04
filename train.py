@@ -42,55 +42,60 @@ def train(
     history = {
         phase + '_' + idx: []
         for idx in indexes for phase in ['train', 'valid']}
-    for e in range(epoch):
-        for phase in ['train', 'valid']:
-            running_loss = 0.
-            epoch_pred = []
-            epoch_target = []
-            if phase == 'train':
-                net.train()
-                prefix = 'Epoch: %d, train | ' % e
-                iterator = pb.progressbar(dataloaders[phase], prefix=prefix)
-            else:
-                net.eval()
-                iterator = dataloaders[phase]
+    try:
+        for e in range(epoch):
+            for phase in ['train', 'valid']:
+                running_loss = 0.
+                epoch_pred = []
+                epoch_target = []
+                if phase == 'train':
+                    net.train()
+                    prefix = 'Epoch: %d, train | ' % e
+                    iterator = pb.progressbar(dataloaders[phase], prefix=prefix)
+                else:
+                    net.eval()
+                    iterator = dataloaders[phase]
 
-            for img, label in iterator:
-                epoch_target.append(label)
-                img = img.to(device)
-                label = label.to(device)
-                with torch.set_grad_enabled(phase == 'train'):
-                    pred = net(img)
-                    loss = criterion(pred, label)
-                    if phase == 'train':
-                        optimizer.zero_grad()
-                        loss.backward()
-                        optimizer.step()
-                with torch.no_grad():
-                    epoch_pred.append(softmax(pred))
-                    running_loss += loss.item() * img.size(0)
+                for img, label in iterator:
+                    epoch_target.append(label)
+                    img = img.to(device)
+                    label = label.to(device)
+                    with torch.set_grad_enabled(phase == 'train'):
+                        pred = net(img)
+                        loss = criterion(pred, label)
+                        if phase == 'train':
+                            optimizer.zero_grad()
+                            loss.backward()
+                            optimizer.step()
+                    with torch.no_grad():
+                        epoch_pred.append(softmax(pred))
+                        running_loss += loss.item() * img.size(0)
 
-            epoch_loss = running_loss / len(dataloaders[phase])
-            history[phase+'_loss'].append(epoch_loss)
-            epoch_pred = torch.cat(epoch_pred, dim=0)
-            epoch_target = torch.cat(epoch_target, dim=0)
-            epoch_metrics = {}
-            for m_f in metrics:
-                m_v = m_f(epoch_target, epoch_pred)
-                epoch_metrics[m_f.__name__] = m_v
-                history[phase+'_'+m_f.__name__].append(m_v)
-            print(
-                'Phase: %s, Loss: %.4f' % (phase, epoch_loss),
-                *[', %s: %.4f' % (k.capitalize(), v)
-                  for k, v in epoch_metrics.items()]
-            )
+                epoch_loss = running_loss / len(dataloaders[phase])
+                history[phase+'_loss'].append(epoch_loss)
+                epoch_pred = torch.cat(epoch_pred, dim=0)
+                epoch_target = torch.cat(epoch_target, dim=0)
+                epoch_metrics = {}
+                for m_f in metrics:
+                    m_v = m_f(epoch_target, epoch_pred)
+                    epoch_metrics[m_f.__name__] = m_v
+                    history[phase+'_'+m_f.__name__].append(m_v)
+                print(
+                    'Phase: %s, Loss: %.4f' % (phase, epoch_loss),
+                    *[
+                        ', %s: %.4f' % (k.capitalize(), v)
+                        for k, v in epoch_metrics.items()
+                    ]
+                )
 
-            if (
-                phase == 'valid' and
-                epoch_metrics[best_benchmark] > best_metrics
-            ):
-                best_metrics = epoch_metrics[best_benchmark]
-                best_model_wts = copy.deepcopy(net.state_dict())
+                if (
+                    phase == 'valid' and
+                    epoch_metrics[best_benchmark] > best_metrics
+                ):
+                    best_metrics = epoch_metrics[best_benchmark]
+                    best_model_wts = copy.deepcopy(net.state_dict())
+    except RuntimeError:
+        import ipdb; ipdb.set_trace()
 
     print('Best valid %s: %.4f' % (best_benchmark, best_metrics))
     net.load_state_dict(best_model_wts)
@@ -161,7 +166,7 @@ def main():
     }
     dataloaders = {
         k: DataLoader(
-            Subset(v, list(range(100))), args.batch_size,
+            v, args.batch_size,
             shuffle=(k == 'train'), num_workers=args.n_jobs
         )
         for k, v in datasets.items()
